@@ -1,11 +1,14 @@
-name: Java CICD
+name: Deploy Java App to EC2 with Docker
 
-on:
-  workflow_dispatch:  # Allows manual triggering
+on: 
+  push:
+    branches:
+      - main
 
 jobs:
-  test:
+  build:
     runs-on: ubuntu-latest
+
     steps:
       - name: Checkout repository
         uses: actions/checkout@v3
@@ -13,57 +16,61 @@ jobs:
       - name: Set up Java
         uses: actions/setup-java@v3
         with:
-          java-version: 3.9
+          distribution: 'temurin'
+          java-version: '17'
 
-  
+      - name: Build Java application
+        run: |
+          javac Calculator.java
+          jar cf calculator.jar Calculator.class
 
-  build:
-    needs: test
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@v3
+      - name: Set up Docker
+        uses: docker/setup-buildx-action@v2
 
-      - name: Build Docker image
-        run: docker build -t java-calculator .
+      - name: Log in to Docker Hub
+        uses: docker/login-action@v2
+        with:
+          username: ${{ secrets.DOCKER_HUB_USERNAME }}
+          password: ${{ secrets.DOCKER_HUB_ACCESS_TOKEN }}
+
+      - name: Build and push Docker image
+        run: |
+          docker build -t ${{ secrets.DOCKER_HUB_USERNAME }}/java-calculator:latest .
+          docker push ${{ secrets.DOCKER_HUB_USERNAME }}/java-calculator:latest
 
   deploy:
     needs: build
     runs-on: ubuntu-latest
+
     steps:
-      - name: SSH into EC2 and deploy
+      - name: SSH into EC2 and Install Docker
         uses: appleboy/ssh-action@master
         with:
           host: ${{ secrets.EC2_HOST }}
           username: ${{ secrets.EC2_USER }}
           key: ${{ secrets.EC2_SSH_PRIVATE_KEY }}
           script: |
-            # Navigate to home directory
-            cd ~
+            # Update packages
+            sudo yum update -y
 
-            # Ensure Docker is installed
-            if ! command -v docker &> /dev/null; then
-              echo "Docker is not installed. Installing..."
-              sudo yum update
-              sudo yum install -y docker.io
-              sudo systemctl start docker
-              sudo systemctl enable docker
-              sudo usermod -aG docker $USER
+            # Install Docker if not installed
+            if ! command -v docker &> /dev/null
+            then
+                echo "Installing Docker..."
+                sudo yum install -y docker.io
+                sudo systemctl start docker
+                sudo systemctl enable docker
+                sudo usermod -aG docker $USER
+            else
+                echo "Docker is already installed"
             fi
-            
-            # Remove old container if it exists
-            docker stop java-calculator || true
-            docker rm java-calculator || true
 
-            # Remove old image
-            docker rmi java-calculator || true
+            # Pull the latest Docker image
+            docker pull ${{ secrets.DOCKER_HUB_USERNAME }}/java-calculator:latest
 
-            # Pull latest code (if applicable)
-            cd ~/java-calculator || git clone https://github.com/nishantsorout/java-deploy.git ~/java-calculator
-            cd ~/java-calculator
-            git pull origin main
+            # Stop and remove the existing container (if running)
+            docker stop java-app || true
+            docker rm java-app || true
 
-            # Build and run the container
-            docker build -t java-calculator .
-            docker run -d --name java-calculator java-calculator
-          
+            # Run the new container
+            docker run -d --name java-app -p 8080:8080 ${{ secrets.DOCKER_HUB_USERNAME }}/java-calculator:latest
