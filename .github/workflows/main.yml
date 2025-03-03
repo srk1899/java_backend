@@ -44,7 +44,7 @@ jobs:
 
             # Remove old application code and fetch the latest from GitHub
             sudo rm -rf /home/ec2-user/java-app
-            git clone https://github.com/nishantsorout/java-deploy.git /home/ec2-user/java-app
+            git clone https://github.com/srk1899/java_backend.git /home/ec2-user/java-app
 
             # Navigate to the project directory
             cd /home/ec2-user/java-app
