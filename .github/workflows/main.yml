@@ -20,6 +20,15 @@ jobs:
             # Update system packages
             sudo yum update -y
 
+             # Install Java if not installed
+            if ! command -v java &> /dev/null
+            then
+                echo "Installing Java..."
+                sudo yum install -y java-17-amazon-corretto
+            else
+                echo "Java is already installed"
+            fi
+
             # Install Docker if not installed
             if ! command -v docker &> /dev/null
             then
