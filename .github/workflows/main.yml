@@ -1,9 +1,7 @@
 name: Deploy Java App to EC2 with Docker (Amazon Linux)
 
 on: 
-  push:
-    branches:
-      - main
+  workflow_dispatch:
 
 jobs:
   deploy:
