@@ -1,0 +1,69 @@
+name: Java CICD
+
+on:
+  workflow_dispatch:  # Allows manual triggering
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v3
+
+      - name: Set up Python
+        uses: actions/setup-java@v3
+        with:
+          python-version: 3.9
+
+  
+
+  build:
+    needs: test
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v3
+
+      - name: Build Docker image
+        run: docker build -t java-calculator .
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - name: SSH into EC2 and deploy
+        uses: appleboy/ssh-action@master
+        with:
+          host: ${{ secrets.EC2_HOST }}
+          username: ${{ secrets.EC2_USER }}
+          key: ${{ secrets.EC2_SSH_PRIVATE_KEY }}
+          script: |
+            # Navigate to home directory
+            cd ~
+
+            # Ensure Docker is installed
+            if ! command -v docker &> /dev/null; then
+              echo "Docker is not installed. Installing..."
+              sudo yum update
+              sudo yum install -y docker.io
+              sudo systemctl start docker
+              sudo systemctl enable docker
+              sudo usermod -aG docker $USER
+            fi
+            
+            # Remove old container if it exists
+            docker stop java-calculator || true
+            docker rm java-calculator || true
+
+            # Remove old image
+            docker rmi java-calculator || true
+
+            # Pull latest code (if applicable)
+            cd ~/java-calculator || git clone https://github.com/nishantsorout/java-deploy.git ~/java-calculator
+            cd ~/java-calculator
+            git pull origin main
+
+            # Build and run the container
+            docker build -t java-calculator .
+            docker run -d --name java-calculator java-calculator
+          
