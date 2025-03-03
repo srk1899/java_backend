@@ -8,7 +8,7 @@ WORKDIR /app
 COPY . .
 
 # Compile the Java file (if using source code)
-RUN javac Calculator.java
+RUN javac calculator.java
 
 # Run the application
-CMD ["java", "Calculator"]
+CMD ["java", "calculator"]
